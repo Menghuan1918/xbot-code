@@ -8,19 +8,24 @@ set -euo pipefail
 #   2. Calls send_inbound RPC to inject a continuation message
 #   3. Server queues the message → triggers new agent turn after current completes
 #
+# For the first continuation (iteration=1), uses the setup prompt.
+# For subsequent continuations, uses the continuation prompt.
+#
 # When goal is complete/blocked or no goal: does nothing (agent stops normally)
 #
 # This provides FORCED continuation without modifying xbot source code.
 # The agent cannot skip continuation — it's injected by the hook, not by the agent.
 
 GOAL_HOME="${XBOT_HOME:-$HOME/.xbot}/goal"
-GOAL_CMD="$(cd "$(dirname "$0")" && pwd)/../goal.sh"
-CONTINUATION_TEMPLATE="$(cd "$(dirname "$0")" && pwd)/../prompts/continuation.md"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CONTINUATION_TEMPLATE="$SCRIPT_DIR/../prompts/continuation.md"
+SETUP_TEMPLATE="$SCRIPT_DIR/../prompts/setup.md"
 
 PAYLOAD=$(cat)
 
 XBOT_GOAL_HOME="$GOAL_HOME" \
-XBOT_GOAL_TEMPLATE="$CONTINUATION_TEMPLATE" \
+XBOT_GOAL_CONTINUATION_TEMPLATE="$CONTINUATION_TEMPLATE" \
+XBOT_GOAL_SETUP_TEMPLATE="$SETUP_TEMPLATE" \
 XBOT_HOOK_PAYLOAD="$PAYLOAD" \
 XBOT_HOME_ENV="${XBOT_HOME:-$HOME/.xbot}" \
 python3 << 'PYEOF'
@@ -28,7 +33,8 @@ import json, os, sys, time
 from datetime import datetime, timezone
 
 goal_home = os.environ["XBOT_GOAL_HOME"]
-template_path = os.environ["XBOT_GOAL_TEMPLATE"]
+continuation_template = os.environ["XBOT_GOAL_CONTINUATION_TEMPLATE"]
+setup_template = os.environ["XBOT_GOAL_SETUP_TEMPLATE"]
 xbot_home = os.environ["XBOT_HOME_ENV"]
 payload_str = os.environ["XBOT_HOOK_PAYLOAD"]
 
@@ -81,7 +87,8 @@ if state["iteration"] >= MAX_ITERATIONS:
                 f"Objective: {state.get('objective', '')}\n")
     sys.exit(0)
 
-# Read continuation prompt template
+# First continuation uses setup prompt, subsequent uses continuation prompt
+template_path = setup_template if state["iteration"] == 1 else continuation_template
 with open(template_path) as f:
     template = f.read()
 continuation_prompt = template.replace("{{ objective }}", state.get("objective", ""))
