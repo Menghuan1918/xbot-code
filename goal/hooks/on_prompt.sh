@@ -35,7 +35,8 @@ if not prompt:
 
 # Check for /goal command — search across all lines (Feishu channel adds
 # timestamp/user prefix before the actual message)
-match = re.search(r'^/goal\s+(.+)', prompt.strip(), re.DOTALL | re.MULTILINE)
+# Only capture the first line after /goal (not subsequent lines like [System Guide])
+match = re.search(r'^/goal\s+(.+)', prompt.strip(), re.MULTILINE)
 if match:
     objective = match.group(1).strip().strip('"').strip("'")
     if not objective:
