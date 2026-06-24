@@ -33,8 +33,9 @@ prompt = payload.get("prompt", "")
 if not prompt:
     sys.exit(0)
 
-# Check for /goal command
-match = re.match(r'^/goal\s+(.+)', prompt.strip(), re.DOTALL)
+# Check for /goal command — search across all lines (Feishu channel adds
+# timestamp/user prefix before the actual message)
+match = re.search(r'^/goal\s+(.+)', prompt.strip(), re.DOTALL | re.MULTILINE)
 if match:
     objective = match.group(1).strip().strip('"').strip("'")
     if not objective:
