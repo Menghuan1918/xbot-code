@@ -152,10 +152,19 @@ func findAgentsMdInDir(dir string) (path string, content string) {
 }
 
 // loadProjectInstructions discovers and reads AGENTS.md files from the project
-// root to the cwd, applying the byte budget. This replicates codex's
-// read_agents_md + agents_md_paths logic.
+// root to the cwd's PARENT directory, applying the byte budget.
+//
+// The CWD itself is intentionally EXCLUDED — xbot's built-in ProjectContextMiddleware
+// (Priority 5) already loads a single AGENTS.md from CWD into SystemParts["05_project_context"].
+// This plugin complements that by loading the ANCESTOR directories (root → parent of CWD)
+// that xbot's middleware does not traverse. This avoids duplicate injection of the CWD file.
 func loadProjectInstructions(cwd string) []instructionEntry {
 	searchDirs := collectSearchDirs(cwd)
+
+	// Exclude the last element (CWD itself) — xbot's built-in middleware handles it.
+	if len(searchDirs) > 1 {
+		searchDirs = searchDirs[:len(searchDirs)-1]
+	}
 
 	var entries []instructionEntry
 	remaining := defaultProjectDocMaxBytes
@@ -186,6 +195,9 @@ func loadProjectInstructions(cwd string) []instructionEntry {
 
 // renderInstructions concatenates the discovered AGENTS.md entries and wraps
 // them in XML markers, matching codex's ContextUserInstructions::render().
+//
+// Note: This only contains ANCESTOR directory files (root → parent of CWD).
+// The CWD's own AGENTS.md is handled by xbot's built-in ProjectContextMiddleware.
 //
 // Output format:
 //
