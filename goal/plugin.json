@@ -1,0 +1,22 @@
+{
+  "id": "goal",
+  "name": "Goal Plugin",
+  "version": "1.0.0",
+  "description": "Persistent goal management for xbot. Use /goal <objective> to start a goal that persists across turns. The agent automatically continues working until the goal is complete or blocked.",
+  "author": "yihang",
+  "runtime": "script",
+  "entry": "bash widget.sh",
+  "permissions": ["hooks.subscribe", "ui.contribute"],
+  "contributes": {
+    "ui": [
+      {
+        "id": "goal-status",
+        "slot": "infoBar",
+        "priority": 5,
+        "description": "Shows current goal status",
+        "refreshInterval": "5s",
+        "triggers": ["PostToolUse:Shell*goal*", "AgentStop:", "UserPromptSubmit:"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "enable_command_hooks": true,
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash {{PLUGIN_DIR}}/hooks/on_prompt.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "AgentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash {{PLUGIN_DIR}}/hooks/on_stop.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
