@@ -1,11 +1,11 @@
 {
   "id": "agents-md",
   "name": "AGENTS.md Auto-Loader",
-  "version": "1.0.0",
-  "description": "Automatically discovers and loads AGENTS.md files from the project root to the current working directory, replicating codex's project-level instruction loading logic. Uses hooks.json UserPromptSubmit hook to capture $XBOT_PROJECT_DIR, and a stdio context enricher to inject the content into the system prompt.",
-  "author": "xbot",
+  "version": "1.1.0",
+  "description": "Automatically discovers and loads AGENTS.md files from the project root to the current working directory, replicating codex's project-level instruction loading logic. Reads CWD from xbot's session_cwd directory (updated by Cd) to stay in sync with directory changes.",
+  "author": "yihang",
   "runtime": "stdio",
-  "entry": "./agents-md",
+  "entry": "./agents-md/agents-md",
   "permissions": ["context.enrich"],
   "contributes": {
     "context_enrichers": [

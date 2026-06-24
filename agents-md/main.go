@@ -4,9 +4,8 @@
 //
 // The plugin communicates with xbot via JSON-over-stdio protocol:
 //   - Receives {"method":"activate"} on startup → responds with enricher declaration
-//   - Receives {"method":"enrich","params":{...}} → reads workDir from params
-//     (injected by xbot's plugin middleware from the session's current CWD)
-//     and returns AGENTS.md content
+//   - Receives {"method":"enrich","params":{...}} → reads CWD from xbot's
+//     session_cwd directory (updated by Cd) and returns AGENTS.md content
 //
 // AGENTS.md discovery (matching codex exactly):
 //  1. Walk up from CWD to find project root (looking for `.git` marker)
@@ -241,21 +240,58 @@ func loadAndRender(cwd string) string {
 }
 
 // ---------------------------------------------------------------------------
-// CWD resolution — from enrich params (injected by xbot plugin middleware)
+// CWD resolution — reads from xbot's session_cwd directory
 // ---------------------------------------------------------------------------
 
-// resolveCWD extracts the working directory from the enrich request params.
-// The xbot plugin middleware injects mc.CWD as "workDir" in the enrich params,
-// which stays in sync with Cd because mc.CWD is read from the session's
-// current dir on each message.
-func resolveCWD(params map[string]any) string {
-	if params == nil {
+// resolveCWD determines the current working directory for AGENTS.md discovery.
+//
+// xbot persists each session's CWD to ~/.xbot/session_cwd/<hash>.txt whenever
+// the Cd tool is used (via TenantSession.SetCurrentDir). We scan this directory
+// and return the most recently modified entry — this is the active session's
+// CWD. No hooks or xbot source modifications required.
+//
+// Limitation: with multiple concurrent sessions, the most-recently-modified
+// heuristic may pick the wrong one. This is acceptable for the common case of
+// a single active session.
+func resolveCWD() string {
+	// Resolve xbot home: check XBOT_HOME env, then default to ~/.xbot
+	xbotHome := os.Getenv("XBOT_HOME")
+	if xbotHome == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		xbotHome = filepath.Join(homeDir, ".xbot")
+	}
+
+	cwdDir := filepath.Join(xbotHome, "session_cwd")
+	matches, err := filepath.Glob(filepath.Join(cwdDir, "*.txt"))
+	if err != nil || len(matches) == 0 {
 		return ""
 	}
-	if wd, ok := params["workDir"].(string); ok && wd != "" {
-		return wd
+
+	// Pick the most recently modified file — it's the active session.
+	var mostRecent string
+	var maxModTime int64
+	for _, m := range matches {
+		info, err := os.Stat(m)
+		if err != nil {
+			continue
+		}
+		if info.ModTime().UnixNano() > maxModTime {
+			maxModTime = info.ModTime().UnixNano()
+			mostRecent = m
+		}
 	}
-	return ""
+	if mostRecent == "" {
+		return ""
+	}
+
+	data, err := os.ReadFile(mostRecent)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 // ---------------------------------------------------------------------------
@@ -318,10 +354,9 @@ func handleRequest(req *pluginRequest) pluginResponse {
 }
 
 func handleEnrich(req *pluginRequest) pluginResponse {
-	// Resolve CWD from the enrich params (injected by xbot plugin middleware).
-	cwd := resolveCWD(req.Params)
+	// Resolve CWD from xbot's session_cwd directory (written by TenantSession.SetCurrentDir).
+	cwd := resolveCWD()
 	if cwd == "" {
-		// No workDir in params — return empty (no AGENTS.md injection).
 		return pluginResponse{Result: ""}
 	}
 
