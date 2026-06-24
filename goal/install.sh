@@ -37,7 +37,7 @@ config["enable_command_hooks"] = True
 config.setdefault("hooks", {})
 goal_hooks = {
     "UserPromptSubmit": [{"matcher":"","hooks":[{"type":"command","command":f"bash {plugin_dir}/hooks/on_prompt.sh","timeout":10}]}],
-    "AgentStop": [{"matcher":"","hooks":[{"type":"command","command":f"bash {plugin_dir}/hooks/on_stop.sh","timeout":15}]}]
+    "AgentStop": [{"matcher":"","hooks":[{"type":"command","command":f"bash {plugin_dir}/hooks/on_stop.sh","timeout":15,"async":True}]}]
 }
 for event, handlers in goal_hooks.items():
     if event not in config["hooks"]:

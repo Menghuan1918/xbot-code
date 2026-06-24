@@ -20,7 +20,8 @@
           {
             "type": "command",
             "command": "bash {{PLUGIN_DIR}}/hooks/on_stop.sh",
-            "timeout": 10
+            "timeout": 15,
+            "async": true
           }
         ]
       }
