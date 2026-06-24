@@ -4,8 +4,9 @@
 //
 // The plugin communicates with xbot via JSON-over-stdio protocol:
 //   - Receives {"method":"activate"} on startup → responds with enricher declaration
-//   - Receives {"method":"enrich","params":{...}} → reads the cached CWD
-//     (written by the UserPromptSubmit hook) and returns AGENTS.md content
+//   - Receives {"method":"enrich","params":{...}} → reads workDir from params
+//     (injected by xbot's plugin middleware from the session's current CWD)
+//     and returns AGENTS.md content
 //
 // AGENTS.md discovery (matching codex exactly):
 //  1. Walk up from CWD to find project root (looking for `.git` marker)
@@ -240,60 +241,20 @@ func loadAndRender(cwd string) string {
 }
 
 // ---------------------------------------------------------------------------
-// CWD resolution — reads from temp file written by UserPromptSubmit hook
+// CWD resolution — from enrich params (injected by xbot plugin middleware)
 // ---------------------------------------------------------------------------
 
-// resolveCWD determines the current working directory for AGENTS.md discovery.
-//
-// The CWD is written to a per-session temp file by the hooks.json
-// UserPromptSubmit hook (hooks/write-cwd.sh), which has access to
-// $XBOT_PROJECT_DIR and $XBOT_SESSION_ID env vars.
-//
-// This approach requires no xbot source code modifications — it leverages
-// the existing hooks system's env vars and the plugin system's context
-// enricher mechanism.
-func resolveCWD() string {
-	// Try to read from the per-session cache file written by the hook.
-	// The hook writes $XBOT_PROJECT_DIR to /tmp/xbot-agents-md-cwd-<session>.
-	//
-	// We don't have $XBOT_SESSION_ID in the stdio process env, so we try
-	// the default cache file and also scan for session-specific files.
-
-	// Try the default (no session ID) cache file first.
-	data, err := os.ReadFile("/tmp/xbot-agents-md-cwd-default")
-	if err == nil {
-		cwd := strings.TrimSpace(string(data))
-		if cwd != "" {
-			return cwd
-		}
+// resolveCWD extracts the working directory from the enrich request params.
+// The xbot plugin middleware injects mc.CWD as "workDir" in the enrich params,
+// which stays in sync with Cd because mc.CWD is read from the session's
+// current dir on each message.
+func resolveCWD(params map[string]any) string {
+	if params == nil {
+		return ""
 	}
-
-	// Try to find any session-specific cache file (most recently modified).
-	matches, _ := filepath.Glob("/tmp/xbot-agents-md-cwd-*")
-	if len(matches) > 0 {
-		var mostRecent string
-		var maxModTime int64
-		for _, m := range matches {
-			info, err := os.Stat(m)
-			if err != nil {
-				continue
-			}
-			if info.ModTime().UnixNano() > maxModTime {
-				maxModTime = info.ModTime().UnixNano()
-				mostRecent = m
-			}
-		}
-		if mostRecent != "" {
-			data, err := os.ReadFile(mostRecent)
-			if err == nil {
-				cwd := strings.TrimSpace(string(data))
-				if cwd != "" {
-					return cwd
-				}
-			}
-		}
+	if wd, ok := params["workDir"].(string); ok && wd != "" {
+		return wd
 	}
-
 	return ""
 }
 
@@ -357,11 +318,10 @@ func handleRequest(req *pluginRequest) pluginResponse {
 }
 
 func handleEnrich(req *pluginRequest) pluginResponse {
-	// Resolve CWD from the temp file written by the UserPromptSubmit hook.
-	cwd := resolveCWD()
+	// Resolve CWD from the enrich params (injected by xbot plugin middleware).
+	cwd := resolveCWD(req.Params)
 	if cwd == "" {
-		// No cache file found — the hook hasn't run yet or failed.
-		// Return empty (no AGENTS.md injection).
+		// No workDir in params — return empty (no AGENTS.md injection).
 		return pluginResponse{Result: ""}
 	}
 
